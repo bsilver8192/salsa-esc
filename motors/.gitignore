@@ -1,0 +1,8 @@
+*.sch#
+*.sch~
+*.sym#
+*.sym~
+*.fp-
+*.pcb-
+*.net
+*.pcb.bak*

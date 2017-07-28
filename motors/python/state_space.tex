@@ -1,0 +1,339 @@
+\documentclass[fleqn]{article}
+\usepackage[paperheight=11in,paperwidth=8.5in,margin=0.5in]{geometry}
+\usepackage{fullpage}
+\usepackage{enumitem}
+\usepackage{listings,lstautogobble}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usetikzlibrary{arrows,automata,positioning}
+\usepackage[normalem]{ulem}
+\usepackage{scrextend}
+\usepackage{textcomp}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+% Left-justify {align}.
+\setlength{\mathindent}{0pt}
+
+\begin{document}
+\begin{flushleft}
+
+\section{Introduction}
+Everything uses the sign conventions and symbol meanings from
+Mevey2009.
+
+http://krex.k-state.edu/dspace/bitstream/handle/2097/1507/JamesMevey2009.pdf
+http://www.icrepq.com/PONENCIAS/4.320.ANDRADA.pdf
+
+All of the controls is going to be in terms of electrical rotations. Conversions
+to/from mechanical rotations will happen outside.
+
+\section{Model}
+The state vector is defined as:
+\[x =
+  \begin{bmatrix}
+    i_A & i_B & i_C & \theta & \omega \\
+  \end{bmatrix}
+^T\]
+\\
+The input vector is defined as:
+\[u =
+  \begin{bmatrix}
+    v_A & v_B & v_C \\
+  \end{bmatrix}
+^T\]
+\\
+The input vector uses the line-neutral voltages, not the terminal voltages.
+TODO(Brian): Would it be a better idea to dump the phase interference matrix
+in here somewhere early and use terminal voltages for everything else? Probably
+not, because the other equations want line-neutral ones too.
+\\
+The output vector is defined as:
+\[y =
+  \begin{bmatrix}
+    i_A & i_B & i_C & \theta \\
+  \end{bmatrix}
+^T\]
+\\
+The common simplifications around ``synchronous inductance'' don't apply because
+our motor isn't sinusoidal.
+Keeping the individual phases split out and not applying a Clarke transform is
+deliberate. The coupling between the phases with a nonsinusoidal motor is not
+describable in that format. In particular, the common approach of decoupling
+$i_d$ and $i_q$ relies on the synchronous inductance, which as discussed doesn't
+work.
+\\
+Equation (B.13), for reference (for general windings, ignoring leakage):
+\[
+  \begin{bmatrix}
+    v_A \\
+    v_B \\
+    v_C \\
+  \end{bmatrix}
+  =
+  \begin{bmatrix}
+    R &   &   \\
+      & R &   \\
+      &   & R \\
+  \end{bmatrix}
+  \begin{bmatrix}
+    i_A \\
+    i_B \\
+    i_C \\
+  \end{bmatrix}
+  +
+  \begin{bmatrix}
+    L - M &       &       \\
+          & L - M &       \\
+          &       & L - M \\
+  \end{bmatrix}
+  \frac{d}{dt}
+  \begin{bmatrix}
+    i_A \\
+    i_B \\
+    i_C \\
+  \end{bmatrix}
+  +
+  \begin{bmatrix}
+    e_A \\
+    e_B \\
+    e_C \\
+  \end{bmatrix}
+\]
+
+Solving for $\frac{d}{dt}$ of the currents:
+\[
+ \frac{d}{dt}
+  \begin{bmatrix}
+    i_A \\
+    i_B \\
+    i_C \\
+  \end{bmatrix}
+  =
+  \left(
+  \begin{bmatrix}
+    v_A \\
+    v_B \\
+    v_C \\
+  \end{bmatrix}
+  -
+  \begin{bmatrix}
+    R &   &   \\
+      & R &   \\
+      &   & R \\
+  \end{bmatrix}
+  \begin{bmatrix}
+    i_A \\
+    i_B \\
+    i_C \\
+  \end{bmatrix}
+  -
+  \begin{bmatrix}
+    e_A \\
+    e_B \\
+    e_C \\
+  \end{bmatrix}
+  \right)
+  \begin{bmatrix}
+    (L - M)^{-1} &              &              \\
+                 & (L - M)^{-1} &              \\
+                 &              & (L - M)^{-1} \\
+  \end{bmatrix}
+\]
+Let $\alpha = (L - M)^{-1}$ to make these equations shorter.
+\\
+We're going to write the bEMF voltages ($e_A$ etc) as $f(\theta) \omega$.
+Page 40 talks about calculating that from first principles, or we should
+probably just calculate it using the 1st and 5th harmonics with coefficients
+fit to measured data.
+
+This means the per-phase torques are $f(\theta) i_A$ etc.
+\\
+\begin{align*}
+\dot{x}(t) &=
+  \begin{bmatrix}
+    \dot{i_A}(t) \\
+    \dot{i_B}(t) \\
+    \dot{i_C}(t) \\
+    \omega(t) \\
+    \dot\omega(t) \\
+  \end{bmatrix}
+  = A(\theta) x(t) + B u(t)
+\\ &=
+  \begin{bmatrix}
+    -R \alpha &           &           & & -f(\theta)               \\
+              & -R \alpha &           & & -f(\theta - 120^{\circ}) \\
+              &           & -R \alpha & & -f(\theta + 120^{\circ}) \\
+              &           &           & & 1                        \\
+    \frac{f(\theta)}{J} & \frac{f(\theta - 120^{\circ})}{J} &
+          \frac{f(\theta + 120^{\circ})}{J} & & \\
+  \end{bmatrix}
+  \begin{bmatrix}
+    i_A(t) \\
+    i_B(t) \\
+    i_C(t) \\
+    \theta(t) \\
+    \omega(t) \\
+  \end{bmatrix}
+  +
+  \begin{bmatrix}
+    \alpha &        &        \\
+           & \alpha &        \\
+           &        & \alpha \\
+           &        &        \\
+           &        &        \\
+  \end{bmatrix}
+  \begin{bmatrix}
+    v_A(t) \\
+    v_B(t) \\
+    v_C(t) \\
+  \end{bmatrix}
+\end{align*}
+\\
+The system is linear. The only elements in the electrical model are
+inductors and resistors, which are both linear.
+It is also time-invariant because nothing actually varies with time.
+However, A is a function of $\theta$, but that's basically just gain-scheduling.
+\\
+\[C =
+  \begin{bmatrix}
+    1 & 0 & 0 & 0 \\
+    0 & 1 & 0 & 0 \\
+    0 & 0 & 1 & 0 \\
+    0 & 0 & 0 & 1 \\
+    0 & 0 & 0 & 0 \\
+  \end{bmatrix}
+\]
+
+\section{Control}
+Because the goal currents will be constantly varying, and having a constant
+time offset on the actual currents is a problem, we will need to do
+feed-forwards.
+In particular, the ``steady-state'' goal will be based on a known function of
+$\theta$. Call it $g(\theta)$, so that
+\[r =
+  \begin{bmatrix}
+    \overline{r}g(\theta) \\
+    \overline{r}g(\theta - 120^{\circ}) \\
+    \overline{r}g(\theta + 120^{\circ}) \\
+    0 \\
+    0 \\
+  \end{bmatrix}
+\]
+where $\overline{r}$ is the actual goal current passed in.
+
+Define the control law as
+$u(t) = -K(\theta)x(t) + K_{ff}(\theta, \omega)\frac{dr}{dt}(\theta, \omega)$.
+
+$K$ is a function of $A$, which is a function of $\theta$, so $K$ is too.
+
+$K$ will have all 0s in the columns corresponding to $\theta$ and $\omega$ so
+we don't try to drive those towards any values at all, and it doesn't matter
+what the corresponding elements of $r$ are.
+
+$K_{ff}$ should adjust $u$ so it follows changes in $r$. Because $r$ is
+periodic, we can calculate $\frac{dr}{dt}$ without much trouble.
+For discrete time,
+\[K_{ff} =
+  \begin{bmatrix}
+    R T & 0   & 0   & 0 & 0 \\
+    0   & R T & 0   & 0 & 0 \\
+    0   & 0   & R T & 0 & 0 \\
+  \end{bmatrix}
+\] where $T$ is the timestep.
+TODO(Brian): What does that mean in continuous time? Does it matter?
+\\
+Seems like we should be doing delta-u but tracking scale errors in the outputs
+rather than absolute errors? Otherwise, each time the sign flips, the integrator
+has to wind down and then back up the other way before it's accurate. Also,
+scale errors seem a lot more likely.
+
+\section{Commanded Torque}
+To get no torque ripple,
+$f(\theta)g(\theta) +
+f(\theta - 120^{\circ})g(\theta - 120^{\circ}) +
+f(\theta + 120^{\circ})g(\theta + 120^{\circ})$
+must equal a constant.
+Call it $1$ to simplify the math and make the above definition of $r$ not
+require a scale factor.
+
+Other interesting things to minimize with the chosen torque command include
+switching losses, copper losses in the battery wires, copper losses in the
+rotor, and iron losses.
+With a fixed switching frequency, the commanded current doesn't have much
+influence on switching losses.
+Copper losses are proportional to $I^2$ in each part of the system.
+Iron losses are composed of two parts: hysteresis and eddy currents.
+Eddy losses are proportional to $\left(\frac{dB}{dt}\right)^2$
+according to Andrada2004, which is proportional to
+$\left(\frac{dT}{dt}\right)^2$.
+Hysteresis losses are proportional to the peak current if there are no loops,
+but with our motor's flux linkage loops might be interesting, although they
+will increase hysteresis losses.
+This is probably a bad idea, because it will heat the magnets up more than they
+are likely rated for, which can lead to demagnetizing them.
+
+Required properties: \begin{itemize}
+  \item Sign of current always matches sign of flux linkage.
+  \item Sign of current derivative only switches twice per rotation.
+    Otherwise, you increase hysteresis losses which is a bad idea.
+  \item The function is smooth.
+    Otherwise, it will include a lot of harmonics and be impossible to actually
+    achieve. TODO(Brian): How much does this actually matter?
+\end{itemize}
+Ordered list of priorities for this application: \begin{enumerate}
+  \item Minimize derivative of current command.
+    This means the overall current is more even, which reduces copper losses.
+    This also reduces eddy losses.
+  \item Minimize battery current ripple.
+    This will reduce heating of the input capacitors, and also slightly
+    reduce heating of the battery wires (and fuse).
+  \item Minimize torque ripple.
+    This reduces mechanical wear.
+    Austin thinks up to 20\% is reasonable.
+\end{enumerate}
+Non-priorities: \begin{itemize}
+  \item Be simple to calculate. We're just going to pre-calculate a table for
+    all encoder positions of both the function and $\frac{dI}{d\theta}$
+\end{itemize}
+
+Commanding sinusoidal current with a sinusoidal flux linkage means
+$f(\theta) = \cos(\theta)$ and
+$g(\theta) = \frac{2}{3}\cos(\theta)$ (sticking the scale factors somewhere
+arbitrary).
+This gives
+\begin{align*}
+  1 =& f(\theta)g(\theta) +
+  f(\theta - 120^{\circ})g(\theta - 120^{\circ}) +
+  f(\theta + 120^{\circ})g(\theta + 120^{\circ}) \\
+  =& \cos(\theta)\frac{2}{3}\cos(\theta) +
+  \cos(\theta - 120^{\circ})\frac{2}{3}\cos(\theta - 120^{\circ}) +
+  \cos(\theta + 120^{\circ})\frac{2}{3}\cos(\theta + 120^{\circ}) \\
+  =& \frac{2}{3}(
+  \cos^2(\theta) + \cos^2(\theta - 120^{\circ}) +
+  \cos^2(\theta + 120^{\circ})) \\
+  =& 1 \\
+\end{align*}
+Interestingly, this has non-zero battery current ripple. At medium and high
+frequencies this is all supplied by the bulk capacitance on the input of the
+motor controller though.
+
+Commanding trapezoidal current with a trapezoidal flux linkage also results
+in a constant torque.
+The torque from each phase obviously forms a trapezoid.
+If these trapezoids are aligned, at any point in time one of them is exerting
+a constant torque and the other two are exerting a position-varying torque.
+If the two whose torque is changing are lined up so their sum is constant,
+the third phase is too, so the overall torque is also torque.
+This also has the property of no battery current ripple, via similar reasoning.
+
+For our motor,
+$f(\theta) = k_1 \sin(\theta) + k_2 \sin(5 \theta)$ where $k_1$ and $k_2$ are
+constants with $k_2 < k_1$ such that it only crosses zero twice per revolution.
+Obviously, we could use division and get a sinusoidal or trapezoidal
+per-phase torque which would have no torque ripple, but those are both
+bad choices.
+In particular, they both have large current derivatives and peaks.
+
+\end{flushleft}
+\end{document}
