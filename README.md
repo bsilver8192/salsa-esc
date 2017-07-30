@@ -12,3 +12,6 @@ cost about $350, but the cost comes down to about $50 each in quantity.
 
 Various aspects are still being improved, so some manual modifications may be
 necessary for optimal performance.
+
+To download the code, run
+`bazel build -c opt --cpu=cortex-m4f //motors:medium_salsa.hex && bazel run //motors/teensy_loader_cli -- --mcu=mk64fx512 -s $(readlink -f bazel-bin/motors/medium_salsa.hex)`.
